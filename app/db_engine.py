@@ -221,14 +221,45 @@ class DBEngine:
                 await pool.close()
                 setattr(self, name, None)
 
-    async def apply_schema(self) -> None:
+    async def schema_ready(self, conn) -> bool:
+        """True when every table and index exists and the seed products are present."""
+        names = ["products", "orders", "audit_logs", "idx_orders_product_id", "idx_orders_request_id",
+                 "idx_audit_logs_created_at", "idx_audit_logs_strategy"]
+        present = await conn.fetchval(
+            "SELECT count(*) FROM unnest($1::text[]) AS n WHERE to_regclass('public.' || n) IS NOT NULL", names)
+        if present != len(names):
+            return False
+        seeded = await conn.fetchval("SELECT count(*) FROM products WHERE id = ANY($1::int[])", list(DEFAULT_STOCK))
+        return seeded == len(DEFAULT_STOCK)
+
+    async def apply_schema(self, attempts: int = 8) -> None:
+        """Create tables, indexes and seed data, once.
+
+        During a rolling deploy the previous instance is still serving traffic
+        and holding row locks. Re-running DDL and seed inserts against a live
+        database can then deadlock with it, so an already-initialised database
+        is left untouched, and a first-time setup retries on lock conflicts.
+        """
         sql = SCHEMA_PATH.read_text(encoding="utf-8")
-        async with self.admin_pool.acquire() as conn:
-            await conn.execute("SELECT pg_advisory_lock($1)", SCHEMA_LOCK_KEY)
-            try:
-                await conn.execute(sql)
-            finally:
-                await conn.execute("SELECT pg_advisory_unlock($1)", SCHEMA_LOCK_KEY)
+        for attempt in range(1, attempts + 1):
+            async with self.admin_pool.acquire() as conn:
+                if await self.schema_ready(conn):
+                    log.info("schema already in place; skipping setup")
+                    return
+                await conn.execute("SELECT pg_advisory_lock($1)", SCHEMA_LOCK_KEY)
+                try:
+                    await conn.execute("SET lock_timeout = '5s'")
+                    await conn.execute(sql)
+                    log.info("schema created")
+                    return
+                except asyncpg.PostgresError as exc:
+                    if sqlstate_of(exc) not in RETRYABLE_SQLSTATES | {"55P03"} or attempt == attempts:
+                        raise
+                    log.warning("schema setup hit a lock conflict (attempt %d/%d): %s", attempt, attempts, exc)
+                finally:
+                    await conn.execute("RESET lock_timeout")
+                    await conn.execute("SELECT pg_advisory_unlock($1)", SCHEMA_LOCK_KEY)
+            await asyncio.sleep(min(0.5 * 2 ** attempt, 8))
 
     def _acquire(self):
         return self.pool.acquire(timeout=self.settings.pool_acquire_timeout_s)
