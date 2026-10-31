@@ -28,7 +28,12 @@ services:
         value: "40"
       - key: BATCH_WORKERS
         value: "2"
+      # The free instance has 0.1 CPU: start visitors on a light workload and cap it.
       - key: LOAD_MAX_USERS
-        value: "1000"
+        value: "500"
       - key: LOAD_MAX_REQUESTS
-        value: "20000"
+        value: "5000"
+      - key: LOAD_DEFAULT_USERS
+        value: "150"
+      - key: LOAD_DEFAULT_REQUESTS
+        value: "1000"

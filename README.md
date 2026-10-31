@@ -280,7 +280,7 @@ The repo ships a [Render](https://render.com) Blueprint (`render.yaml`) that cre
 2. In Render: **New → Blueprint**, pick the repo, and apply. The database and the service are created and linked automatically.
 3. Open `https://<service-name>.onrender.com`.
 
-On the free plan the service sleeps after 15 minutes without traffic, so the first visit after a pause takes about a minute to wake. The blueprint also lowers the load-test limits (`LOAD_MAX_USERS=1000`, `LOAD_MAX_REQUESTS=20000`) and the pool size to fit the free tier; the dashboard sliders follow those limits automatically.
+On the free plan the service sleeps after 15 minutes without traffic, so the first visit after a pause takes about a minute to wake. The free instance has a tenth of a CPU, so the blueprint starts visitors on a light workload (150 users, 1,000 requests) and caps tests at 500 users and 5,000 requests. The dashboard sliders follow those values automatically. Expect throughput numbers far below a laptop's; the relative ordering of the strategies is what the demo shows. For the benchmark numbers in this README, run it locally with `./run.sh`.
 
 Any host that runs a Docker image and provides PostgreSQL works the same way: set `DATABASE_URL`, and the container listens on `$PORT` (default 8000). The schema is created on first start.
 
@@ -322,6 +322,7 @@ All via environment variables (see `docker-compose.yml`).
 | `STATEMENT_TIMEOUT_MS` | 15000 | Server-side statement timeout |
 | `WS_PUSH_INTERVAL_MS` / `WS_FULL_INTERVAL_MS` | 100 / 1000 | Dashboard live-frame and full-snapshot intervals |
 | `LOAD_MAX_USERS` / `LOAD_MAX_REQUESTS` | 20000 / 1000000 | Caps on dashboard-triggered load tests (lower on small public hosts) |
+| `LOAD_DEFAULT_USERS` / `LOAD_DEFAULT_REQUESTS` | 1000 / 10000 | Starting values of the dashboard sliders |
 | `PORT` | 8000 | Port the container listens on |
 
 PostgreSQL tuning in `docker-compose.yml`: `max_connections=200`, `shared_buffers=256MB`, `deadlock_timeout=200ms`, `max_wal_size=2GB`, `log_lock_waits=on`, and `synchronous_commit=off` (a benchmark convenience that applies equally to all strategies; remove it for production durability).

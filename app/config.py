@@ -65,6 +65,9 @@ class Settings:
     # public hosts (e.g. a free cloud instance) so one visitor can't swamp it.
     load_max_users: int = field(default_factory=lambda: _int("LOAD_MAX_USERS", 20000))
     load_max_requests: int = field(default_factory=lambda: _int("LOAD_MAX_REQUESTS", 1000000))
+    # Starting values for the dashboard sliders.
+    load_default_users: int = field(default_factory=lambda: _int("LOAD_DEFAULT_USERS", 1000))
+    load_default_requests: int = field(default_factory=lambda: _int("LOAD_DEFAULT_REQUESTS", 10000))
 
 
 settings = Settings()

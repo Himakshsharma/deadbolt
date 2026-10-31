@@ -80,6 +80,7 @@
 
   // Keep the sliders inside whatever limits this deployment enforces.
   let limitsApplied = false;
+  let paramsTouched = false;
   function applyLimits(settings) {
     if (limitsApplied || !settings || !settings.load_max_users) return;
     limitsApplied = true;
@@ -89,6 +90,11 @@
     };
     clamp($("users"), settings.load_max_users);
     clamp($("requests"), settings.load_max_requests);
+    // Start from this deployment's suggested workload unless the visitor already moved a slider.
+    if (!paramsTouched) {
+      if (settings.load_default_users) $("users").value = String(Math.min(settings.load_default_users, settings.load_max_users));
+      if (settings.load_default_requests) $("requests").value = String(Math.min(settings.load_default_requests, settings.load_max_requests));
+    }
     $("users").dispatchEvent(new Event("input"));
   }
 
@@ -274,6 +280,8 @@
     }
     $("btn-reset").disabled = busy;
     $("btn-race").disabled = busy;
+    const racing = run.state === "comparing";
+    document.querySelectorAll("#strategy button").forEach((b) => { b.disabled = racing; });
 
     let label = "Ready";
     if (run.state === "running") label = `Running · ${LABEL[active]}`;
@@ -410,7 +418,11 @@
     $("o-items").textContent = String(p.max_items);
     $("params-summary").textContent = `${fmt(p.users)} users · ${fmt(p.total_requests)} requests · ${Math.round(p.contention * 100)}% on hottest · ${nf1.format(p.stock)}× stock`;
   }
-  Object.values(inputs).forEach((el) => el.addEventListener("input", paintParams));
+  Object.values(inputs).forEach((el) => {
+    el.addEventListener("input", paintParams);
+    el.addEventListener("pointerdown", () => { paramsTouched = true; });
+    el.addEventListener("keydown", () => { paramsTouched = true; });
+  });
   paintParams();
 
   function loadBody(strategy) {
@@ -419,12 +431,13 @@
   }
 
   document.querySelectorAll("#strategy button").forEach((btn) => btn.addEventListener("click", async () => {
+    if (btn.disabled) return;
     const strategy = btn.dataset.strategy;
     model.selected = strategy;
     model.pendingSelectUntil = performance.now() + 800;
     paintStrategy(strategy);
     try { await api("/api/strategy", { strategy }); }
-    catch (e) { message(e.message, "bad"); }
+    catch (e) { model.pendingSelectUntil = 0; model.dirty = true; message(e.message, "bad"); }
   }));
 
   $("btn-run").addEventListener("click", async () => {

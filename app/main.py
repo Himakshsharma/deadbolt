@@ -197,6 +197,8 @@ class AppState:
                 "default_stock": {str(k): v for k, v in DEFAULT_STOCK.items()},
                 "load_max_users": settings.load_max_users,
                 "load_max_requests": settings.load_max_requests,
+                "load_default_users": settings.load_default_users,
+                "load_default_requests": settings.load_default_requests,
             },
         }
 
@@ -268,6 +270,10 @@ async def audit_summary() -> list[dict]:
 
 @app.post("/api/strategy")
 async def set_strategy(body: StrategyIn) -> dict:
+    # A race runs each strategy on an identical workload; switching mid-race would
+    # make the comparison unfair, so the switch is refused until the race ends.
+    if state.runner.state == "comparing" and state.runner.busy:
+        raise HTTPException(status_code=409, detail="A race is running. Strategies switch automatically; wait for it to finish.")
     state.http_strategy = body.strategy
     state.runner.set_strategy(body.strategy)
     return {"active_strategy": body.strategy.value}
