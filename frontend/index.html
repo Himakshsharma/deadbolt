@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Deadbolt</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+
+  <!-- ================================================================ 1 · HEADER -->
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 20 20" aria-hidden="true">
+          <rect x="3.5" y="9" width="13" height="8.5" rx="2" />
+          <path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9" />
+        </svg>
+        <span class="brand-name">DEADBOLT</span>
+        <span id="status" class="status" data-tone="idle"><span class="status-dot"></span><span id="status-text">Connecting</span></span>
+      </div>
+
+      <div class="seg" id="strategy" role="radiogroup" aria-label="Write strategy">
+        <button type="button" role="radio" data-strategy="naive">Naïve</button>
+        <button type="button" role="radio" data-strategy="pessimistic">Lock First</button>
+        <button type="button" role="radio" data-strategy="optimistic">Optimistic</button>
+        <button type="button" role="radio" data-strategy="batched">Micro-Batched</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <p id="strategy-note" class="strategy-note"></p>
+
+    <!-- ============================================================ 2 · STAT CARDS -->
+    <section class="stats" aria-label="Live metrics">
+      <article class="card stat">
+        <h2 class="eyebrow">Throughput</h2>
+        <p class="stat-value"><span id="v-rps" class="num">0</span><span class="unit">req/s</span></p>
+        <p class="stat-foot" id="f-rps">Peak 0 req/s</p>
+      </article>
+
+      <article class="card stat">
+        <h2 class="eyebrow">DB commits</h2>
+        <p class="stat-value"><span id="v-cps" class="num">0</span><span class="unit">/s</span></p>
+        <p class="stat-foot" id="f-cps">No traffic yet</p>
+      </article>
+
+      <article class="card stat" id="card-deadlocks">
+        <h2 class="eyebrow">Deadlocks detected</h2>
+        <p class="stat-value"><span id="v-dl" class="num">0</span></p>
+        <p class="stat-foot" id="f-dl">Naïve 0 · Fixed strategies 0</p>
+      </article>
+
+      <article class="card stat" id="card-integrity">
+        <h2 class="eyebrow">Inventory integrity</h2>
+        <p class="stat-value"><span id="v-oversold" class="num">0</span><span class="unit">oversold</span></p>
+        <p class="stat-foot" id="f-integrity">Every sale is backed by stock</p>
+      </article>
+    </section>
+
+    <!-- ============================================================ 3 · ACTIONS + ANALYTICS -->
+    <section class="card controls" aria-label="Load test">
+      <div class="controls-row">
+        <div class="actions">
+          <button type="button" id="btn-run" class="btn btn-primary">Start high-concurrency test</button>
+          <button type="button" id="btn-reset" class="btn btn-secondary">Reset stock</button>
+          <button type="button" id="btn-race" class="btn btn-ghost" title="Run the same workload through all four strategies, resetting stock between each">Race all four</button>
+        </div>
+        <div class="run-meta">
+          <span id="run-label">Ready</span>
+          <span class="run-count" id="run-count"></span>
+        </div>
+      </div>
+
+      <div class="progress" aria-hidden="true"><div id="progress-bar"></div></div>
+
+      <details class="params" id="params">
+        <summary>
+          <span class="eyebrow">Parameters</span>
+          <span id="params-summary" class="params-summary"></span>
+          <svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" /></svg>
+        </summary>
+        <div class="params-grid">
+          <label class="field">
+            <span class="field-head"><span>Concurrent users</span><output id="o-users">1,000</output></span>
+            <input id="users" type="range" min="100" max="5000" step="100" value="1000" />
+          </label>
+          <label class="field">
+            <span class="field-head"><span>Total requests</span><output id="o-requests">10,000</output></span>
+            <input id="requests" type="range" min="1000" max="50000" step="1000" value="10000" />
+          </label>
+          <label class="field">
+            <span class="field-head"><span>Traffic on hottest product</span><output id="o-contention">90%</output></span>
+            <input id="contention" type="range" min="0" max="100" step="5" value="90" />
+          </label>
+          <label class="field">
+            <span class="field-head"><span>Stock level</span><output id="o-stock">1.0×</output></span>
+            <input id="stock" type="range" min="0.5" max="5" step="0.5" value="1" />
+          </label>
+          <label class="field">
+            <span class="field-head"><span>Products per cart (max)</span><output id="o-items">3</output></span>
+            <input id="items" type="range" min="1" max="5" step="1" value="3" />
+          </label>
+        </div>
+        <p class="params-hint">Stock level applies on <b>Reset stock</b>. Carts with more than one product lock several rows, which is what makes deadlocks possible.</p>
+      </details>
+      <p id="message" class="message" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="charts">
+      <article class="card chart-card">
+        <header class="chart-head">
+          <h2 class="eyebrow">Live throughput</h2>
+          <div class="legend">
+            <span><i style="background:var(--text)"></i>Requests</span>
+            <span><i style="background:var(--cyan)"></i>Commits</span>
+          </div>
+        </header>
+        <div class="chart-box"><canvas id="chart-throughput"></canvas></div>
+      </article>
+      <article class="card chart-card">
+        <header class="chart-head">
+          <h2 class="eyebrow">Deadlocks over time</h2>
+          <div class="legend">
+            <span><i style="background:var(--bad)"></i>Naïve</span>
+            <span><i style="background:var(--ok)"></i>Fixed</span>
+          </div>
+        </header>
+        <div class="chart-box"><canvas id="chart-deadlocks"></canvas></div>
+      </article>
+    </section>
+
+    <section class="card race" id="race" hidden>
+      <header class="race-head">
+        <h2 class="eyebrow">Race results</h2>
+        <span class="race-sub">Same seeded workload per strategy, stock reset between runs</span>
+      </header>
+      <p id="verdict" class="verdict"></p>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Strategy</th><th class="r">Req/s</th><th class="r">Sold</th><th class="r">Lost</th>
+              <th class="r">Deadlocks</th><th class="r">Commits</th><th class="r">p95</th><th class="r">Oversold</th>
+            </tr>
+          </thead>
+          <tbody id="race-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <span id="foot-db">PostgreSQL</span>
+      <a href="/docs">API</a>
+    </footer>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

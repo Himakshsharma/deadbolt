@@ -1,0 +1,34 @@
+# Render Blueprint: one click creates the PostgreSQL database and the web service.
+# Dashboard: https://dashboard.render.com/blueprints -> "New Blueprint Instance" -> pick this repo.
+databases:
+  - name: deadbolt-db
+    plan: free
+    databaseName: deadbolt
+    user: deadbolt
+    ipAllowList: []          # internal connections only
+
+services:
+  - type: web
+    name: deadbolt
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: deadbolt-db
+          property: connectionString
+      # Free Postgres allows ~100 connections and the free instance has 0.1 CPU:
+      # keep the pool and the per-test load modest.
+      - key: POOL_MIN_SIZE
+        value: "5"
+      - key: POOL_MAX_SIZE
+        value: "40"
+      - key: BATCH_WORKERS
+        value: "2"
+      - key: LOAD_MAX_USERS
+        value: "1000"
+      - key: LOAD_MAX_REQUESTS
+        value: "20000"

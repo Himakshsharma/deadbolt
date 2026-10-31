@@ -1,0 +1,72 @@
+name: deadbolt
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: deadbolt-postgres
+    environment:
+      POSTGRES_USER: deadbolt
+      POSTGRES_PASSWORD: deadbolt
+      POSTGRES_DB: deadbolt
+    command:
+      - postgres
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=768MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - wal_buffers=16MB
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - random_page_cost=1.1
+      # Deadlock detector runs after a lock wait exceeds this. The default 1s
+      # makes the naive demo painfully slow; 200ms keeps it realistic but snappy.
+      - -c
+      - deadlock_timeout=200ms
+      - -c
+      - log_lock_waits=on
+      # Benchmark-only durability trade-off: commits don't wait for the WAL flush.
+      # Remove for production; it affects every strategy equally.
+      - -c
+      - synchronous_commit=off
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deadbolt -d deadbolt"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    container_name: deadbolt-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://deadbolt:deadbolt@postgres:5432/deadbolt
+      POOL_MIN_SIZE: "10"
+      POOL_MAX_SIZE: "80"
+      BATCH_MAX_SIZE: "50"
+      BATCH_MAX_WAIT_MS: "50"
+      BATCH_WORKERS: "4"
+      NAIVE_THINK_MS: "1"
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
