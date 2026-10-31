@@ -34,6 +34,6 @@ services:
       - key: LOAD_MAX_REQUESTS
         value: "5000"
       - key: LOAD_DEFAULT_USERS
-        value: "150"
+        value: "200"
       - key: LOAD_DEFAULT_REQUESTS
         value: "1000"

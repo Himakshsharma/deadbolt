@@ -280,7 +280,9 @@ The repo ships a [Render](https://render.com) Blueprint (`render.yaml`) that cre
 2. In Render: **New → Blueprint**, pick the repo, and apply. The database and the service are created and linked automatically.
 3. Open `https://<service-name>.onrender.com`.
 
-On the free plan the service sleeps after 15 minutes without traffic, so the first visit after a pause takes about a minute to wake. The free instance has a tenth of a CPU, so the blueprint starts visitors on a light workload (150 users, 1,000 requests) and caps tests at 500 users and 5,000 requests. The dashboard sliders follow those values automatically. Expect throughput numbers far below a laptop's; the relative ordering of the strategies is what the demo shows. For the benchmark numbers in this README, run it locally with `./run.sh`.
+Live demo: **https://deadbolt.onrender.com**
+
+On the free plan the service sleeps after 15 minutes without traffic, so the first visit after a pause takes about a minute to wake. The free instance has a tenth of a CPU, so the blueprint starts visitors on a light workload (200 users, 1,000 requests) and caps tests at 500 users and 5,000 requests. The dashboard sliders follow those values automatically. Expect throughput numbers far below a laptop's; the relative ordering of the strategies is what the demo shows. For the benchmark numbers in this README, run it locally with `./run.sh`.
 
 Any host that runs a Docker image and provides PostgreSQL works the same way: set `DATABASE_URL`, and the container listens on `$PORT` (default 8000). The schema is created on first start.
 
